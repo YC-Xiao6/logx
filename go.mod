@@ -1,4 +1,4 @@
-module log
+module github.com/YC-Xiao6/logx
 
 go 1.14
 
