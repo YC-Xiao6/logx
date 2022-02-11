@@ -684,11 +684,13 @@ func (lo *LoggerObj) Errorf(format string, args ...interface{}) {
 
 func (lo *LoggerObj) Fatal(args ...interface{}) {
 	lo.println(FATAL, args...)
+	lo.Flush()
 	os.Exit(0)
 }
 
 func (lo *LoggerObj) Fatalf(format string, args ...interface{}) {
 	lo.printf(FATAL, format, args...)
+	lo.Flush()
 	os.Exit(0)
 }
 
