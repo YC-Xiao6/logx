@@ -45,7 +45,7 @@ func (lv logLevel) Str() string {
 	if lv >= DEBUG && lv <= FATAL {
 		levels := strings.Split(logShort,",")
 		colors := strings.Split(colorShort,",")
-		return "\033[1;"+colors[lv]+";40m"+levels[lv]+"\033[0m"
+		return "\x1b[1;"+colors[lv]+";40m"+levels[lv]+"\x1b[0m"
 	}
 	return "[NONE]"
 }
@@ -66,8 +66,9 @@ type LoggerObj struct {
 
 // 日志的基础配置
 type Config struct {
+	NewOutObj		bool			// 是否使用外部新定义的日志对象 默认 false
 	LogFileClose	bool			// 是否关闭日志文件的写入 默认 false
-	Console     	bool			// 控制台输出  默认 false
+	ConsoleClose    bool			// 控制台输出  默认 false
 	CallInfo 		bool			// 是否输出行号和文件名 默认 false
 	ShortPath 		bool			// 短路径	默认 false
 	MaxStorageDay   int				// 最大保留天数 默认 60天
@@ -97,6 +98,12 @@ func NewLoggerObj(c Config) *LoggerObj{
 	}
 	if c.MaxSize == 0{
 		c.MaxSize = maxSize
+	}
+	if c.NewOutObj{
+		nlo := new(LoggerObj)
+		nlo.config = &c
+		nlo.newLogger()
+		return nlo
 	}
 	lo = new(LoggerObj)
 	lo.config = &c
@@ -155,7 +162,6 @@ func (lo *LoggerObj) writeLogByRetreatSafely() {
 	os.Exit(0)
 }
 
-
 // 判定邮件配置所需信息
 func checkMailInfo(mc *MailConfig){
 	if mc.User == "" || mc.Subject == "" || mc.Nickname == "" || mc.MailSendObjs == nil ||mc.Password == ""{
@@ -190,6 +196,19 @@ func SetMailConfig(mc MailConfig) {
 func (lo *LoggerObj) SetMailConfig(mc MailConfig) {
 	lo.lock.Lock()
 	lo.config.Mail = mc
+	lo.lock.Unlock()
+}
+
+// 设置邮件发送人
+func SetSendObjs(objs []string) {
+	checkLoggerObj()
+	lo.SetSendObjs(objs)
+}
+
+// 设置邮件信息
+func (lo *LoggerObj) SetSendObjs(objs []string) {
+	lo.lock.Lock()
+	lo.config.Mail.MailSendObjs = objs
 	lo.lock.Unlock()
 }
 
@@ -286,16 +305,16 @@ func (lo *LoggerObj) SetShortPath(b bool) {
 	lo.lock.Unlock()
 }
 
-// 设置控制台输出
-func SetConsole(b bool) {
+// 关闭控制台输出
+func ConsoleClose(b bool) {
 	checkLoggerObj()
-	lo.SetConsole(b)
+	lo.ConsoleClose(b)
 }
 
-// 设置控制台输出
-func (lo *LoggerObj) SetConsole(b bool) {
+// 设置控制台输出是否关闭
+func (lo *LoggerObj) ConsoleClose(b bool) {
 	lo.lock.Lock()
-	lo.config.Console = b
+	lo.config.ConsoleClose = b
 	lo.lock.Unlock()
 }
 
@@ -303,12 +322,11 @@ func (lo *LoggerObj) SetConsole(b bool) {
 func Flush() {
 	checkLoggerObj()
 	lo.Flush()
-
 }
 
 // 写入文件
 func (lo *LoggerObj) Flush() {
-	if !lo.config.LogFileClose {
+	if lo.config.LogFileClose {
 		return
 	}
 	lo.lock.Lock()
@@ -437,7 +455,7 @@ func (lo *LoggerObj) printf(lv logLevel, format string, args ...interface{}) {
 func (lo *LoggerObj) Write(buf []byte) (n int, err error) {
 	lo.lock.Lock()
 	defer lo.lock.Unlock()
-	if lo.config.Console {
+	if !lo.config.ConsoleClose {
 		os.Stderr.Write(buf)
 	}
 	if lo.config.LogFileClose{
@@ -570,6 +588,7 @@ func (lo *LoggerObj) flushSync() {
 func (lo *LoggerObj) exit(err error) {
 	fmt.Fprintf(os.Stderr, "logs: exiting because of error: %s\n", err)
 	lo.flushSync()
+	lo.sendmail()
 	os.Exit(0)
 }
 
