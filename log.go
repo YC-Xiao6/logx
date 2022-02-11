@@ -514,6 +514,9 @@ func (lo *LoggerObj) delete() {
 
 // rotate 切割文件
 func (lo *LoggerObj) rotate() error {
+	if lo.config.LogFileClose{
+		return nil
+	}
 	now := time.Now()
 	if lo.file != nil {
 		lo.writer.Flush()
